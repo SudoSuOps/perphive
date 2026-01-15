@@ -13,6 +13,83 @@ export interface Env {
   ENVIRONMENT: string;
   CRYPTOQUANT_API_KEY: string;
   POLYGON_API_KEY: string;
+  TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_CHAT_ID: string;
+}
+
+// Send Telegram notification
+async function sendTelegramAlert(botToken: string, chatId: string, message: string): Promise<void> {
+  if (!botToken || !chatId) return;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+  } catch (e) {
+    console.error('Telegram send error:', e);
+  }
+}
+
+// Track previous whale signals (in-memory, resets on worker restart)
+let lastBtcWhaleSignal: string = 'NEUTRAL';
+let lastEthWhaleSignal: string = 'NEUTRAL';
+let lastAlertTime: number = 0;
+
+// Check for strong whale signals and send Telegram alerts
+async function checkAndSendWhaleAlerts(data: { btc: Signal; eth: Signal }, env: Env): Promise<void> {
+  const now = Date.now();
+
+  // Rate limit: max 1 alert per 5 minutes to avoid spam
+  if (now - lastAlertTime < 300000) return;
+
+  const btcConsensus = data.btc.whaleConsensus;
+  const ethConsensus = data.eth.whaleConsensus;
+
+  let alertMessage = '';
+
+  // Check BTC whale signal
+  if (btcConsensus && btcConsensus.strength >= 70) {
+    if (btcConsensus.signal === 'LONG' && lastBtcWhaleSignal !== 'LONG') {
+      alertMessage += `🐋 <b>BTC WHALE LONG</b>\n`;
+      alertMessage += `Strength: ${btcConsensus.strength}%\n`;
+      alertMessage += `Exchanges: ${btcConsensus.exchangesWithBids}/3 agree\n`;
+      alertMessage += `Price: $${data.btc.hyperliquid?.price?.toLocaleString() || '--'}\n\n`;
+    } else if (btcConsensus.signal === 'SHORT' && lastBtcWhaleSignal !== 'SHORT') {
+      alertMessage += `🐋 <b>BTC WHALE SHORT</b>\n`;
+      alertMessage += `Strength: ${btcConsensus.strength}%\n`;
+      alertMessage += `Exchanges: ${btcConsensus.exchangesWithAsks}/3 agree\n`;
+      alertMessage += `Price: $${data.btc.hyperliquid?.price?.toLocaleString() || '--'}\n\n`;
+    }
+  }
+  lastBtcWhaleSignal = btcConsensus?.signal || 'NEUTRAL';
+
+  // Check ETH whale signal
+  if (ethConsensus && ethConsensus.strength >= 70) {
+    if (ethConsensus.signal === 'LONG' && lastEthWhaleSignal !== 'LONG') {
+      alertMessage += `🐋 <b>ETH WHALE LONG</b>\n`;
+      alertMessage += `Strength: ${ethConsensus.strength}%\n`;
+      alertMessage += `Exchanges: ${ethConsensus.exchangesWithBids}/3 agree\n`;
+      alertMessage += `Price: $${data.eth.hyperliquid?.price?.toLocaleString() || '--'}\n`;
+    } else if (ethConsensus.signal === 'SHORT' && lastEthWhaleSignal !== 'SHORT') {
+      alertMessage += `🐋 <b>ETH WHALE SHORT</b>\n`;
+      alertMessage += `Strength: ${ethConsensus.strength}%\n`;
+      alertMessage += `Exchanges: ${ethConsensus.exchangesWithAsks}/3 agree\n`;
+      alertMessage += `Price: $${data.eth.hyperliquid?.price?.toLocaleString() || '--'}\n`;
+    }
+  }
+  lastEthWhaleSignal = ethConsensus?.signal || 'NEUTRAL';
+
+  // Send alert if we have one
+  if (alertMessage) {
+    lastAlertTime = now;
+    await sendTelegramAlert(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, alertMessage);
+  }
 }
 
 // Funding rates data
@@ -113,6 +190,35 @@ async function fetchMarketData(apiKey: string, cache: KVNamespace): Promise<Mark
     console.error('Market data fetch error:', e);
     return cached;
   }
+}
+
+// Estimated Liquidation Levels
+interface LiquidationLevels {
+  btcPrice: number;
+  ethPrice: number;
+  btcLongLiqs: { leverage: number; price: number }[];  // Long liquidation prices
+  btcShortLiqs: { leverage: number; price: number }[]; // Short liquidation prices
+  ethLongLiqs: { leverage: number; price: number }[];
+  ethShortLiqs: { leverage: number; price: number }[];
+}
+
+// Calculate estimated liquidation levels based on current price
+function calculateLiquidationLevels(btcPrice: number, ethPrice: number): LiquidationLevels {
+  const leverages = [10, 25, 50, 100];
+
+  // Liquidation price = Entry * (1 - 1/leverage) for longs
+  // Liquidation price = Entry * (1 + 1/leverage) for shorts
+  const calcLongLiq = (price: number, lev: number) => price * (1 - 1/lev);
+  const calcShortLiq = (price: number, lev: number) => price * (1 + 1/lev);
+
+  return {
+    btcPrice,
+    ethPrice,
+    btcLongLiqs: leverages.map(l => ({ leverage: l, price: Math.round(calcLongLiq(btcPrice, l)) })),
+    btcShortLiqs: leverages.map(l => ({ leverage: l, price: Math.round(calcShortLiq(btcPrice, l)) })),
+    ethLongLiqs: leverages.map(l => ({ leverage: l, price: Math.round(calcLongLiq(ethPrice, l)) })),
+    ethShortLiqs: leverages.map(l => ({ leverage: l, price: Math.round(calcShortLiq(ethPrice, l)) }))
+  };
 }
 
 // Long/Short Ratio data
@@ -1248,7 +1354,10 @@ export default {
           fetchLongShortRatio(env.CACHE).catch(() => null)
         ]);
 
-        const orderFlowData = await doResponse.json();
+        const orderFlowData = await doResponse.json() as { btc: Signal; eth: Signal };
+
+        // Check for whale alerts (70%+ strength signals)
+        await checkAndSendWhaleAlerts(orderFlowData, env);
 
         return new Response(JSON.stringify({
           ...orderFlowData as object,
@@ -1263,7 +1372,11 @@ export default {
           funding: fundingData,
           market: marketData,
           openInterest: oiData,
-          longShort: lsData
+          longShort: lsData,
+          liquidationLevels: calculateLiquidationLevels(
+            orderFlowData.btc.hyperliquid?.price || 96000,
+            orderFlowData.eth.hyperliquid?.price || 3300
+          )
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });

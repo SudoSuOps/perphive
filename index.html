@@ -1074,6 +1074,45 @@
             </div>
         </section>
 
+        <section class="liquidation-section" style="padding: 30px 0; border-top: 1px solid var(--border);">
+            <div class="container">
+                <div class="section-title">Liquidation Levels (Price Hunt Zones)</div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                    <!-- BTC Liquidations -->
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-size: 14px; font-weight: 600; margin-bottom: 15px;">BTC Liquidation Zones</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--red); margin-bottom: 8px;">LONG LIQS (price drops to)</div>
+                                <div id="btc-long-liqs" style="font-size: 12px; font-family: 'SF Mono', monospace;">--</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 8px;">SHORT LIQS (price rises to)</div>
+                                <div id="btc-short-liqs" style="font-size: 12px; font-family: 'SF Mono', monospace;">--</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ETH Liquidations -->
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                        <div style="font-size: 14px; font-weight: 600; margin-bottom: 15px;">ETH Liquidation Zones</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--red); margin-bottom: 8px;">LONG LIQS (price drops to)</div>
+                                <div id="eth-long-liqs" style="font-size: 12px; font-family: 'SF Mono', monospace;">--</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--green); margin-bottom: 8px;">SHORT LIQS (price rises to)</div>
+                                <div id="eth-short-liqs" style="font-size: 12px; font-family: 'SF Mono', monospace;">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: var(--text-muted); text-align: center;">
+                    Price hunts liquidity. High leverage positions get liquidated first. Cascading liquidations cause volatility.
+                </div>
+            </div>
+        </section>
+
         <section class="levels-section">
             <div class="container">
                 <div class="section-title">Support & Resistance (Order Book Walls)</div>
@@ -1947,6 +1986,19 @@
             }
         }
 
+        // Update liquidation levels
+        function updateLiquidationLevels(liq) {
+            // Format: "100x: $95,040 | 50x: $94,080 | 25x: $92,160 | 10x: $86,400"
+            const formatLiqs = (liqs) => liqs.map(l =>
+                `<span style="color: var(--text-muted);">${l.leverage}x:</span> $${l.price.toLocaleString()}`
+            ).join(' | ');
+
+            document.getElementById('btc-long-liqs').innerHTML = formatLiqs(liq.btcLongLiqs);
+            document.getElementById('btc-short-liqs').innerHTML = formatLiqs(liq.btcShortLiqs);
+            document.getElementById('eth-long-liqs').innerHTML = formatLiqs(liq.ethLongLiqs);
+            document.getElementById('eth-short-liqs').innerHTML = formatLiqs(liq.ethShortLiqs);
+        }
+
         // Fallback REST polling
         async function fetchRESTData() {
             try {
@@ -1971,6 +2023,7 @@
                 if (data.market) updateMarketData(data.market);
                 if (data.openInterest) updateOpenInterest(data.openInterest);
                 if (data.longShort) updateLongShort(data.longShort);
+                if (data.liquidationLevels) updateLiquidationLevels(data.liquidationLevels);
             } catch (e) {
                 console.error('Supplemental data fetch error:', e);
             }
