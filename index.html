@@ -1916,25 +1916,29 @@
             }
         }
 
-        // Fetch on-chain data (separate from WebSocket since it's hourly cached)
-        async function fetchOnChainData() {
+        // Fetch supplemental data (metals, funding, market, OI, on-chain)
+        async function fetchSupplementalData() {
             try {
                 const resp = await fetch(API_URL + '/api/data');
                 const data = await resp.json();
-                if (data.onChain) {
-                    updateOnChainData(data.onChain);
-                }
+
+                // Update all supplemental data
+                if (data.onChain) updateOnChainData(data.onChain);
+                if (data.metals) updateMetalsData(data.metals);
+                if (data.funding) updateFundingData(data.funding);
+                if (data.market) updateMarketData(data.market);
+                if (data.openInterest) updateOpenInterest(data.openInterest);
             } catch (e) {
-                console.error('On-chain fetch error:', e);
+                console.error('Supplemental data fetch error:', e);
             }
         }
 
         // Initialize
         connectWebSocket();
 
-        // Fetch on-chain data immediately and every 5 minutes (it's cached hourly)
-        fetchOnChainData();
-        setInterval(fetchOnChainData, 5 * 60 * 1000);
+        // Fetch supplemental data immediately and every minute
+        fetchSupplementalData();
+        setInterval(fetchSupplementalData, 60 * 1000);
 
         // Fallback polling if WebSocket fails
         setInterval(() => {
