@@ -3,7 +3,7 @@
 # Polls 2miners API and alerts on new blocks
 
 WALLET="kaspa:qyp6mntj6r99luus6lxv4svlpfwss4eccpca6fs4v7l9ltqcsvsu7hqfn34dl5l"
-API_URL="https://kas.2miners.com/api/accounts/${WALLET}"
+API_URL="https://solo-kas.2miners.com/api/accounts/${WALLET}"
 POLL_INTERVAL=30
 LAST_BLOCK=""
 
