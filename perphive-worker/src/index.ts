@@ -115,6 +115,57 @@ async function fetchMarketData(apiKey: string, cache: KVNamespace): Promise<Mark
   }
 }
 
+// Long/Short Ratio data
+interface LongShortData {
+  btcRatio: number;    // >1 = more longs, <1 = more shorts
+  ethRatio: number;
+  btcSentiment: 'LONG_HEAVY' | 'SHORT_HEAVY' | 'BALANCED';
+  ethSentiment: 'LONG_HEAVY' | 'SHORT_HEAVY' | 'BALANCED';
+  timestamp: number;
+}
+
+// Fetch Long/Short ratio from OKX
+async function fetchLongShortRatio(cache: KVNamespace): Promise<LongShortData | null> {
+  const cached = await cache.get('ls_ratio', 'json') as LongShortData | null;
+  if (cached && Date.now() - cached.timestamp < 60000) { // 1 min cache
+    return cached;
+  }
+
+  try {
+    const [btcResp, ethResp] = await Promise.all([
+      fetch('https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=BTC&period=5m'),
+      fetch('https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=ETH&period=5m')
+    ]);
+
+    const btcData = await btcResp.json() as any;
+    const ethData = await ethResp.json() as any;
+
+    const btcRatio = parseFloat(btcData.data?.[0]?.[1] || '1');
+    const ethRatio = parseFloat(ethData.data?.[0]?.[1] || '1');
+
+    // Sentiment thresholds: >1.3 = long heavy, <0.7 = short heavy
+    const getSentiment = (ratio: number): 'LONG_HEAVY' | 'SHORT_HEAVY' | 'BALANCED' => {
+      if (ratio > 1.3) return 'LONG_HEAVY';
+      if (ratio < 0.7) return 'SHORT_HEAVY';
+      return 'BALANCED';
+    };
+
+    const lsData: LongShortData = {
+      btcRatio,
+      ethRatio,
+      btcSentiment: getSentiment(btcRatio),
+      ethSentiment: getSentiment(ethRatio),
+      timestamp: Date.now()
+    };
+
+    await cache.put('ls_ratio', JSON.stringify(lsData), { expirationTtl: 300 });
+    return lsData;
+  } catch (e) {
+    console.error('L/S ratio fetch error:', e);
+    return cached;
+  }
+}
+
 // Open Interest data
 interface OpenInterestData {
   btcOI: number;           // Total OI in USD
@@ -1187,13 +1238,14 @@ export default {
 
       // For /api/data, enrich with on-chain data, metals, funding, market, and OI
       if (url.pathname === '/api/data') {
-        const [doResponse, onChainData, metalsData, fundingData, marketData, oiData] = await Promise.all([
+        const [doResponse, onChainData, metalsData, fundingData, marketData, oiData, lsData] = await Promise.all([
           stub.fetch(request),
           fetchOnChainData(env.CRYPTOQUANT_API_KEY, env.CACHE).catch(() => null),
           fetchMetalsData(env.CACHE).catch(() => null),
           fetchFundingRates(env.CACHE).catch(() => null),
           fetchMarketData(env.POLYGON_API_KEY, env.CACHE).catch(() => null),
-          fetchOpenInterest(env.CACHE).catch(() => null)
+          fetchOpenInterest(env.CACHE).catch(() => null),
+          fetchLongShortRatio(env.CACHE).catch(() => null)
         ]);
 
         const orderFlowData = await doResponse.json();
@@ -1210,7 +1262,8 @@ export default {
           metals: metalsData,
           funding: fundingData,
           market: marketData,
-          openInterest: oiData
+          openInterest: oiData,
+          longShort: lsData
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });

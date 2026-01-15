@@ -781,6 +781,22 @@
                         <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace; color: var(--text-secondary);" id="eth-oi">$--</span>
                     </div>
                 </div>
+                <!-- Divider -->
+                <div style="width: 1px; height: 30px; background: var(--border);"></div>
+                <!-- BTC L/S -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">BTC L/S</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="btc-ls">--</span>
+                    </div>
+                </div>
+                <!-- ETH L/S -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">ETH L/S</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="eth-ls">--</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1905,6 +1921,32 @@
             ethOiEl.textContent = '$' + ethOiB.toFixed(2) + 'B';
         }
 
+        // Update Long/Short ratio
+        function updateLongShort(ls) {
+            const btcLsEl = document.getElementById('btc-ls');
+            const ethLsEl = document.getElementById('eth-ls');
+
+            // BTC L/S
+            btcLsEl.textContent = ls.btcRatio.toFixed(2);
+            if (ls.btcRatio > 1.3) {
+                btcLsEl.style.color = 'var(--red)'; // Long heavy = risky
+            } else if (ls.btcRatio < 0.7) {
+                btcLsEl.style.color = 'var(--green)'; // Short heavy = potential squeeze
+            } else {
+                btcLsEl.style.color = 'var(--text-secondary)';
+            }
+
+            // ETH L/S
+            ethLsEl.textContent = ls.ethRatio.toFixed(2);
+            if (ls.ethRatio > 1.3) {
+                ethLsEl.style.color = 'var(--red)';
+            } else if (ls.ethRatio < 0.7) {
+                ethLsEl.style.color = 'var(--green)';
+            } else {
+                ethLsEl.style.color = 'var(--text-secondary)';
+            }
+        }
+
         // Fallback REST polling
         async function fetchRESTData() {
             try {
@@ -1928,6 +1970,7 @@
                 if (data.funding) updateFundingData(data.funding);
                 if (data.market) updateMarketData(data.market);
                 if (data.openInterest) updateOpenInterest(data.openInterest);
+                if (data.longShort) updateLongShort(data.longShort);
             } catch (e) {
                 console.error('Supplemental data fetch error:', e);
             }
