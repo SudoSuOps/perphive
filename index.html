@@ -1601,8 +1601,25 @@
             }
         }
 
+        // Fetch on-chain data (separate from WebSocket since it's hourly cached)
+        async function fetchOnChainData() {
+            try {
+                const resp = await fetch(API_URL + '/api/data');
+                const data = await resp.json();
+                if (data.onChain) {
+                    updateOnChainData(data.onChain);
+                }
+            } catch (e) {
+                console.error('On-chain fetch error:', e);
+            }
+        }
+
         // Initialize
         connectWebSocket();
+
+        // Fetch on-chain data immediately and every 5 minutes (it's cached hourly)
+        fetchOnChainData();
+        setInterval(fetchOnChainData, 5 * 60 * 1000);
 
         // Fallback polling if WebSocket fails
         setInterval(() => {
