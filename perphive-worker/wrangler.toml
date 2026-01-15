@@ -1,0 +1,21 @@
+name = "perphive-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+account_id = "6abec5e82728df0610a98be9364918e4"
+
+[durable_objects]
+bindings = [
+  { name = "ORDER_FLOW", class_name = "OrderFlowDO" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OrderFlowDO"]
+
+[vars]
+ENVIRONMENT = "production"
+
+# KV for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "8d4d00a4892b4f4ba64708a4ae2b191c"
