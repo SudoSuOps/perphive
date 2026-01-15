@@ -686,6 +686,44 @@
         </div>
     </header>
 
+    <!-- Precious Metals Ticker -->
+    <div style="background: var(--bg-tertiary); border-bottom: 1px solid var(--border); padding: 10px 0;">
+        <div class="container">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 40px; flex-wrap: wrap;">
+                <!-- Gold -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 20px;">🥇</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Gold (XAU)</div>
+                        <div style="display: flex; align-items: baseline; gap: 8px;">
+                            <span style="font-size: 20px; font-weight: 700; font-family: 'SF Mono', monospace;" id="gold-price">$--</span>
+                            <span style="font-size: 13px;" id="gold-change">--</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Silver -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 20px;">🥈</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Silver (XAG)</div>
+                        <div style="display: flex; align-items: baseline; gap: 8px;">
+                            <span style="font-size: 20px; font-weight: 700; font-family: 'SF Mono', monospace;" id="silver-price">$--</span>
+                            <span style="font-size: 13px;" id="silver-change">--</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Gold/Silver Ratio -->
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 18px;">⚖️</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Au/Ag Ratio</div>
+                        <span style="font-size: 18px; font-weight: 600; font-family: 'SF Mono', monospace; color: var(--text-secondary);" id="gold-silver-ratio">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <main>
         <section class="hero-signal">
             <div class="container">
@@ -1182,6 +1220,11 @@
                 updateOnChainData(onChain);
             }
 
+            // Update metals data
+            if (data.metals) {
+                updateMetalsData(data.metals);
+            }
+
             // Update time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
         }
@@ -1588,6 +1631,32 @@
                 return (num / 1000).toFixed(1) + 'K';
             }
             return num.toFixed(0);
+        }
+
+        // Update precious metals display
+        function updateMetalsData(metals) {
+            // Gold
+            const goldPriceEl = document.getElementById('gold-price');
+            const goldChangeEl = document.getElementById('gold-change');
+            goldPriceEl.textContent = '$' + metals.gold.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            const goldUp = metals.goldChange >= 0;
+            goldChangeEl.textContent = `${goldUp ? '+' : ''}${metals.goldChange.toFixed(2)} (${goldUp ? '+' : ''}${metals.goldChangePct.toFixed(2)}%)`;
+            goldChangeEl.style.color = goldUp ? 'var(--green)' : 'var(--red)';
+
+            // Silver
+            const silverPriceEl = document.getElementById('silver-price');
+            const silverChangeEl = document.getElementById('silver-change');
+            silverPriceEl.textContent = '$' + metals.silver.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            const silverUp = metals.silverChange >= 0;
+            silverChangeEl.textContent = `${silverUp ? '+' : ''}${metals.silverChange.toFixed(2)} (${silverUp ? '+' : ''}${metals.silverChangePct.toFixed(2)}%)`;
+            silverChangeEl.style.color = silverUp ? 'var(--green)' : 'var(--red)';
+
+            // Gold/Silver Ratio
+            const ratioEl = document.getElementById('gold-silver-ratio');
+            const ratio = metals.gold / metals.silver;
+            ratioEl.textContent = ratio.toFixed(1) + ':1';
         }
 
         // Fallback REST polling

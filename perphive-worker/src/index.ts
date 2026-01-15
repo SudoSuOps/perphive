@@ -14,6 +14,49 @@ export interface Env {
   CRYPTOQUANT_API_KEY: string;
 }
 
+// Precious metals data
+interface MetalsData {
+  gold: number;
+  silver: number;
+  goldChange: number;
+  silverChange: number;
+  goldChangePct: number;
+  silverChangePct: number;
+  timestamp: number;
+}
+
+// Fetch gold/silver prices from goldprice.org
+async function fetchMetalsData(cache: KVNamespace): Promise<MetalsData | null> {
+  // Check cache (1 minute cache for metals)
+  const cached = await cache.get('metals_data', 'json') as MetalsData | null;
+  if (cached && Date.now() - cached.timestamp < 60000) {
+    return cached;
+  }
+
+  try {
+    const resp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
+    const data = await resp.json() as any;
+    if (data.items && data.items[0]) {
+      const item = data.items[0];
+      const metals: MetalsData = {
+        gold: item.xauPrice,
+        silver: item.xagPrice,
+        goldChange: item.chgXau,
+        silverChange: item.chgXag,
+        goldChangePct: item.pcXau,
+        silverChangePct: item.pcXag,
+        timestamp: Date.now()
+      };
+      await cache.put('metals_data', JSON.stringify(metals), { expirationTtl: 300 });
+      return metals;
+    }
+    return cached;
+  } catch (e) {
+    console.error('Metals fetch error:', e);
+    return cached;
+  }
+}
+
 // CryptoQuant on-chain data
 interface OnChainData {
   btcLeverageRatio: number;
@@ -976,11 +1019,12 @@ export default {
       const id = env.ORDER_FLOW.idFromName('global');
       const stub = env.ORDER_FLOW.get(id);
 
-      // For /api/data, enrich with on-chain data
+      // For /api/data, enrich with on-chain data and metals
       if (url.pathname === '/api/data') {
-        const [doResponse, onChainData] = await Promise.all([
+        const [doResponse, onChainData, metalsData] = await Promise.all([
           stub.fetch(request),
-          fetchOnChainData(env.CRYPTOQUANT_API_KEY, env.CACHE).catch(() => null)
+          fetchOnChainData(env.CRYPTOQUANT_API_KEY, env.CACHE).catch(() => null),
+          fetchMetalsData(env.CACHE).catch(() => null)
         ]);
 
         const orderFlowData = await doResponse.json();
@@ -993,7 +1037,8 @@ export default {
             btcMinerPositionIndex: onChainData.btcMinerPositionIndex,
             minerSentiment: onChainData.btcMinerPositionIndex < -0.1 ? 'ACCUMULATING' : onChainData.btcMinerPositionIndex > 0.1 ? 'DISTRIBUTING' : 'NEUTRAL',
             minerCompanies: onChainData.minerCompanies || []
-          } : null
+          } : null,
+          metals: metalsData
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
