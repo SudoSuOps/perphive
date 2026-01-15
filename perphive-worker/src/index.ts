@@ -115,6 +115,71 @@ async function fetchMarketData(apiKey: string, cache: KVNamespace): Promise<Mark
   }
 }
 
+// Open Interest data
+interface OpenInterestData {
+  btcOI: number;           // Total OI in USD
+  ethOI: number;
+  btcOIHyperliquid: number; // Hyperliquid OI in coins
+  ethOIHyperliquid: number;
+  btcOIOkx: number;        // OKX OI in USD
+  ethOIOkx: number;
+  timestamp: number;
+}
+
+// Fetch Open Interest from OKX and Hyperliquid
+async function fetchOpenInterest(cache: KVNamespace): Promise<OpenInterestData | null> {
+  const cached = await cache.get('oi_data', 'json') as OpenInterestData | null;
+  if (cached && Date.now() - cached.timestamp < 60000) { // 1 min cache
+    return cached;
+  }
+
+  try {
+    const [okxBtc, okxEth, hlData] = await Promise.all([
+      fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP'),
+      fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=ETH-USDT-SWAP'),
+      fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+      })
+    ]);
+
+    const okxBtcData = await okxBtc.json() as any;
+    const okxEthData = await okxEth.json() as any;
+    const hlDataJson = await hlData.json() as any;
+
+    // OKX OI in USD
+    const btcOIOkx = parseFloat(okxBtcData.data?.[0]?.oiUsd || '0');
+    const ethOIOkx = parseFloat(okxEthData.data?.[0]?.oiUsd || '0');
+
+    // Hyperliquid OI in coins (index 0 = BTC, index 1 = ETH)
+    const btcOIHL = parseFloat(hlDataJson[1]?.[0]?.openInterest || '0');
+    const ethOIHL = parseFloat(hlDataJson[1]?.[1]?.openInterest || '0');
+    const btcPrice = parseFloat(hlDataJson[1]?.[0]?.markPx || '96000');
+    const ethPrice = parseFloat(hlDataJson[1]?.[1]?.markPx || '3300');
+
+    // Convert HL to USD
+    const btcOIHLUsd = btcOIHL * btcPrice;
+    const ethOIHLUsd = ethOIHL * ethPrice;
+
+    const oi: OpenInterestData = {
+      btcOI: btcOIOkx + btcOIHLUsd,
+      ethOI: ethOIOkx + ethOIHLUsd,
+      btcOIHyperliquid: btcOIHL,
+      ethOIHyperliquid: ethOIHL,
+      btcOIOkx: btcOIOkx,
+      ethOIOkx: ethOIOkx,
+      timestamp: Date.now()
+    };
+
+    await cache.put('oi_data', JSON.stringify(oi), { expirationTtl: 300 });
+    return oi;
+  } catch (e) {
+    console.error('OI fetch error:', e);
+    return cached;
+  }
+}
+
 // Precious metals data
 interface MetalsData {
   gold: number;
@@ -1120,14 +1185,15 @@ export default {
       const id = env.ORDER_FLOW.idFromName('global');
       const stub = env.ORDER_FLOW.get(id);
 
-      // For /api/data, enrich with on-chain data, metals, funding, and market data
+      // For /api/data, enrich with on-chain data, metals, funding, market, and OI
       if (url.pathname === '/api/data') {
-        const [doResponse, onChainData, metalsData, fundingData, marketData] = await Promise.all([
+        const [doResponse, onChainData, metalsData, fundingData, marketData, oiData] = await Promise.all([
           stub.fetch(request),
           fetchOnChainData(env.CRYPTOQUANT_API_KEY, env.CACHE).catch(() => null),
           fetchMetalsData(env.CACHE).catch(() => null),
           fetchFundingRates(env.CACHE).catch(() => null),
-          fetchMarketData(env.POLYGON_API_KEY, env.CACHE).catch(() => null)
+          fetchMarketData(env.POLYGON_API_KEY, env.CACHE).catch(() => null),
+          fetchOpenInterest(env.CACHE).catch(() => null)
         ]);
 
         const orderFlowData = await doResponse.json();
@@ -1143,7 +1209,8 @@ export default {
           } : null,
           metals: metalsData,
           funding: fundingData,
-          market: marketData
+          market: marketData,
+          openInterest: oiData
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });

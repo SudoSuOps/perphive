@@ -765,6 +765,22 @@
                         <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="eth-funding">--%</span>
                     </div>
                 </div>
+                <!-- Divider -->
+                <div style="width: 1px; height: 30px; background: var(--border);"></div>
+                <!-- BTC OI -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">BTC OI</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace; color: var(--text-secondary);" id="btc-oi">$--</span>
+                    </div>
+                </div>
+                <!-- ETH OI -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">ETH OI</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace; color: var(--text-secondary);" id="eth-oi">$--</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1386,6 +1402,11 @@
                 updateMarketData(data.market);
             }
 
+            // Update open interest
+            if (data.openInterest) {
+                updateOpenInterest(data.openInterest);
+            }
+
             // Check for whale alerts (70%+ strength)
             checkWhaleAlerts(btc.whaleConsensus, eth.whaleConsensus);
 
@@ -1869,6 +1890,19 @@
             const qqqUp = market.qqq.change >= 0;
             qqqChangeEl.textContent = `${qqqUp ? '+' : ''}${market.qqq.changePct.toFixed(2)}%`;
             qqqChangeEl.style.color = qqqUp ? 'var(--green)' : 'var(--red)';
+        }
+
+        // Update open interest
+        function updateOpenInterest(oi) {
+            const btcOiEl = document.getElementById('btc-oi');
+            const ethOiEl = document.getElementById('eth-oi');
+
+            // Format in billions
+            const btcOiB = oi.btcOI / 1e9;
+            const ethOiB = oi.ethOI / 1e9;
+
+            btcOiEl.textContent = '$' + btcOiB.toFixed(2) + 'B';
+            ethOiEl.textContent = '$' + ethOiB.toFixed(2) + 'B';
         }
 
         // Fallback REST polling
