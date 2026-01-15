@@ -12,6 +12,107 @@ export interface Env {
   CACHE: KVNamespace;
   ENVIRONMENT: string;
   CRYPTOQUANT_API_KEY: string;
+  POLYGON_API_KEY: string;
+}
+
+// Funding rates data
+interface FundingData {
+  btcFunding: number;      // Current funding rate (8h)
+  ethFunding: number;
+  btcAnnualized: number;   // Annualized %
+  ethAnnualized: number;
+  nextFundingTime: number;
+  timestamp: number;
+}
+
+// Fetch OKX funding rates
+async function fetchFundingRates(cache: KVNamespace): Promise<FundingData | null> {
+  const cached = await cache.get('funding_data', 'json') as FundingData | null;
+  if (cached && Date.now() - cached.timestamp < 60000) { // 1 min cache
+    return cached;
+  }
+
+  try {
+    const [btcResp, ethResp] = await Promise.all([
+      fetch('https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP'),
+      fetch('https://www.okx.com/api/v5/public/funding-rate?instId=ETH-USDT-SWAP')
+    ]);
+
+    const btcData = await btcResp.json() as any;
+    const ethData = await ethResp.json() as any;
+
+    if (btcData.data?.[0] && ethData.data?.[0]) {
+      const btcRate = parseFloat(btcData.data[0].fundingRate);
+      const ethRate = parseFloat(ethData.data[0].fundingRate);
+
+      const funding: FundingData = {
+        btcFunding: btcRate,
+        ethFunding: ethRate,
+        btcAnnualized: btcRate * 3 * 365 * 100, // 3 funding periods per day * 365 days * 100 for %
+        ethAnnualized: ethRate * 3 * 365 * 100,
+        nextFundingTime: parseInt(btcData.data[0].nextFundingTime),
+        timestamp: Date.now()
+      };
+
+      await cache.put('funding_data', JSON.stringify(funding), { expirationTtl: 300 });
+      return funding;
+    }
+    return cached;
+  } catch (e) {
+    console.error('Funding fetch error:', e);
+    return cached;
+  }
+}
+
+// Market data (SPY, QQQ, DXY)
+interface MarketData {
+  spy: { price: number; change: number; changePct: number };
+  qqq: { price: number; change: number; changePct: number };
+  timestamp: number;
+}
+
+// Fetch SPY/QQQ from Polygon.io
+async function fetchMarketData(apiKey: string, cache: KVNamespace): Promise<MarketData | null> {
+  const cached = await cache.get('market_data', 'json') as MarketData | null;
+  if (cached && Date.now() - cached.timestamp < 60000) { // 1 min cache
+    return cached;
+  }
+
+  try {
+    const [spyResp, qqqResp] = await Promise.all([
+      fetch(`https://api.polygon.io/v2/aggs/ticker/SPY/prev?apiKey=${apiKey}`),
+      fetch(`https://api.polygon.io/v2/aggs/ticker/QQQ/prev?apiKey=${apiKey}`)
+    ]);
+
+    const spyData = await spyResp.json() as any;
+    const qqqData = await qqqResp.json() as any;
+
+    if (spyData.results?.[0] && qqqData.results?.[0]) {
+      const spy = spyData.results[0];
+      const qqq = qqqData.results[0];
+
+      const market: MarketData = {
+        spy: {
+          price: spy.c,
+          change: spy.c - spy.o,
+          changePct: ((spy.c - spy.o) / spy.o) * 100
+        },
+        qqq: {
+          price: qqq.c,
+          change: qqq.c - qqq.o,
+          changePct: ((qqq.c - qqq.o) / qqq.o) * 100
+        },
+        timestamp: Date.now()
+      };
+
+      await cache.put('market_data', JSON.stringify(market), { expirationTtl: 300 });
+      return market;
+    }
+    return cached;
+  } catch (e) {
+    console.error('Market data fetch error:', e);
+    return cached;
+  }
 }
 
 // Precious metals data
@@ -1019,12 +1120,14 @@ export default {
       const id = env.ORDER_FLOW.idFromName('global');
       const stub = env.ORDER_FLOW.get(id);
 
-      // For /api/data, enrich with on-chain data and metals
+      // For /api/data, enrich with on-chain data, metals, funding, and market data
       if (url.pathname === '/api/data') {
-        const [doResponse, onChainData, metalsData] = await Promise.all([
+        const [doResponse, onChainData, metalsData, fundingData, marketData] = await Promise.all([
           stub.fetch(request),
           fetchOnChainData(env.CRYPTOQUANT_API_KEY, env.CACHE).catch(() => null),
-          fetchMetalsData(env.CACHE).catch(() => null)
+          fetchMetalsData(env.CACHE).catch(() => null),
+          fetchFundingRates(env.CACHE).catch(() => null),
+          fetchMarketData(env.POLYGON_API_KEY, env.CACHE).catch(() => null)
         ]);
 
         const orderFlowData = await doResponse.json();
@@ -1038,7 +1141,9 @@ export default {
             minerSentiment: onChainData.btcMinerPositionIndex < -0.1 ? 'ACCUMULATING' : onChainData.btcMinerPositionIndex > 0.1 ? 'DISTRIBUTING' : 'NEUTRAL',
             minerCompanies: onChainData.minerCompanies || []
           } : null,
-          metals: metalsData
+          metals: metalsData,
+          funding: fundingData,
+          market: marketData
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });

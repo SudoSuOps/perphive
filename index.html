@@ -677,6 +677,11 @@
                         <span class="exchange-badge">OKX</span>
                         <span class="exchange-badge">Kraken</span>
                     </div>
+                    <!-- Alert Toggle -->
+                    <button id="alert-toggle" onclick="toggleAlerts()" style="background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px;">
+                        <span id="alert-icon">🔕</span>
+                        <span id="alert-text">Alerts Off</span>
+                    </button>
                     <div class="live-indicator">
                         <div class="live-dot" id="live-dot"></div>
                         <span id="update-time">--:--:--</span>
@@ -718,6 +723,46 @@
                     <div>
                         <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Au/Ag Ratio</div>
                         <span style="font-size: 18px; font-weight: 600; font-family: 'SF Mono', monospace; color: var(--text-secondary);" id="gold-silver-ratio">--</span>
+                    </div>
+                </div>
+                <!-- Divider -->
+                <div style="width: 1px; height: 30px; background: var(--border);"></div>
+                <!-- SPY -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 16px;">📈</span>
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">SPY</div>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="spy-price">$--</span>
+                            <span style="font-size: 11px;" id="spy-change">--</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- QQQ -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 16px;">💻</span>
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">QQQ</div>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="qqq-price">$--</span>
+                            <span style="font-size: 11px;" id="qqq-change">--</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Divider -->
+                <div style="width: 1px; height: 30px; background: var(--border);"></div>
+                <!-- BTC Funding -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">BTC Funding</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="btc-funding">--%</span>
+                    </div>
+                </div>
+                <!-- ETH Funding -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted);">ETH Funding</div>
+                        <span style="font-size: 16px; font-weight: 600; font-family: 'SF Mono', monospace;" id="eth-funding">--%</span>
                     </div>
                 </div>
             </div>
@@ -1156,6 +1201,112 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 10;
 
+        // Alert system
+        let alertsEnabled = false;
+        let lastBtcWhaleSignal = 'NEUTRAL';
+        let lastEthWhaleSignal = 'NEUTRAL';
+        let audioContext = null;
+
+        // Toggle alerts on/off
+        function toggleAlerts() {
+            alertsEnabled = !alertsEnabled;
+            const icon = document.getElementById('alert-icon');
+            const text = document.getElementById('alert-text');
+            const btn = document.getElementById('alert-toggle');
+
+            if (alertsEnabled) {
+                icon.textContent = '🔔';
+                text.textContent = 'Alerts On';
+                btn.style.borderColor = 'var(--green)';
+                btn.style.color = 'var(--green)';
+                // Request notification permission
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+                // Initialize audio context on user interaction
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            } else {
+                icon.textContent = '🔕';
+                text.textContent = 'Alerts Off';
+                btn.style.borderColor = 'var(--border)';
+                btn.style.color = 'var(--text-secondary)';
+            }
+        }
+
+        // Play alert sound
+        function playAlertSound(type) {
+            if (!audioContext) return;
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Different tones for LONG vs SHORT
+            if (type === 'LONG') {
+                oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 - higher pitch for long
+                oscillator.frequency.setValueAtTime(1100, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(1320, audioContext.currentTime + 0.2);
+            } else {
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 - lower pitch for short
+                oscillator.frequency.setValueAtTime(350, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(280, audioContext.currentTime + 0.2);
+            }
+
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.4);
+        }
+
+        // Show browser notification
+        function showNotification(title, body, type) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: type === 'LONG' ? '🟢' : '🔴',
+                    tag: 'whale-alert',
+                    requireInteraction: true
+                });
+                // Auto close after 10 seconds
+                setTimeout(() => notification.close(), 10000);
+            }
+        }
+
+        // Check for whale alert conditions
+        function checkWhaleAlerts(btcConsensus, ethConsensus) {
+            if (!alertsEnabled) return;
+
+            // BTC whale alert
+            if (btcConsensus && btcConsensus.strength >= 70) {
+                if (btcConsensus.signal === 'LONG' && lastBtcWhaleSignal !== 'LONG') {
+                    playAlertSound('LONG');
+                    showNotification('🐋 BTC WHALE LONG', `${btcConsensus.strength}% strength - ${btcConsensus.exchangesWithBids}/3 exchanges`, 'LONG');
+                } else if (btcConsensus.signal === 'SHORT' && lastBtcWhaleSignal !== 'SHORT') {
+                    playAlertSound('SHORT');
+                    showNotification('🐋 BTC WHALE SHORT', `${btcConsensus.strength}% strength - ${btcConsensus.exchangesWithAsks}/3 exchanges`, 'SHORT');
+                }
+            }
+            lastBtcWhaleSignal = btcConsensus?.signal || 'NEUTRAL';
+
+            // ETH whale alert
+            if (ethConsensus && ethConsensus.strength >= 70) {
+                if (ethConsensus.signal === 'LONG' && lastEthWhaleSignal !== 'LONG') {
+                    playAlertSound('LONG');
+                    showNotification('🐋 ETH WHALE LONG', `${ethConsensus.strength}% strength - ${ethConsensus.exchangesWithBids}/3 exchanges`, 'LONG');
+                } else if (ethConsensus.signal === 'SHORT' && lastEthWhaleSignal !== 'SHORT') {
+                    playAlertSound('SHORT');
+                    showNotification('🐋 ETH WHALE SHORT', `${ethConsensus.strength}% strength - ${ethConsensus.exchangesWithAsks}/3 exchanges`, 'SHORT');
+                }
+            }
+            lastEthWhaleSignal = ethConsensus?.signal || 'NEUTRAL';
+        }
+
         // Connect WebSocket
         function connectWebSocket() {
             const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
@@ -1224,6 +1375,19 @@
             if (data.metals) {
                 updateMetalsData(data.metals);
             }
+
+            // Update funding rates
+            if (data.funding) {
+                updateFundingData(data.funding);
+            }
+
+            // Update market data (SPY/QQQ)
+            if (data.market) {
+                updateMarketData(data.market);
+            }
+
+            // Check for whale alerts (70%+ strength)
+            checkWhaleAlerts(btc.whaleConsensus, eth.whaleConsensus);
 
             // Update time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
@@ -1657,6 +1821,54 @@
             const ratioEl = document.getElementById('gold-silver-ratio');
             const ratio = metals.gold / metals.silver;
             ratioEl.textContent = ratio.toFixed(1) + ':1';
+        }
+
+        // Update funding rates display
+        function updateFundingData(funding) {
+            const btcFundingEl = document.getElementById('btc-funding');
+            const ethFundingEl = document.getElementById('eth-funding');
+
+            // BTC funding (show annualized %)
+            const btcAnn = funding.btcAnnualized;
+            btcFundingEl.textContent = (btcAnn >= 0 ? '+' : '') + btcAnn.toFixed(1) + '%';
+            // Green if negative (shorts pay longs), Red if high positive (longs pay shorts)
+            if (btcAnn > 20) {
+                btcFundingEl.style.color = 'var(--red)';
+            } else if (btcAnn < -5) {
+                btcFundingEl.style.color = 'var(--green)';
+            } else {
+                btcFundingEl.style.color = 'var(--text-secondary)';
+            }
+
+            // ETH funding
+            const ethAnn = funding.ethAnnualized;
+            ethFundingEl.textContent = (ethAnn >= 0 ? '+' : '') + ethAnn.toFixed(1) + '%';
+            if (ethAnn > 20) {
+                ethFundingEl.style.color = 'var(--red)';
+            } else if (ethAnn < -5) {
+                ethFundingEl.style.color = 'var(--green)';
+            } else {
+                ethFundingEl.style.color = 'var(--text-secondary)';
+            }
+        }
+
+        // Update market data (SPY/QQQ)
+        function updateMarketData(market) {
+            // SPY
+            const spyPriceEl = document.getElementById('spy-price');
+            const spyChangeEl = document.getElementById('spy-change');
+            spyPriceEl.textContent = '$' + market.spy.price.toFixed(2);
+            const spyUp = market.spy.change >= 0;
+            spyChangeEl.textContent = `${spyUp ? '+' : ''}${market.spy.changePct.toFixed(2)}%`;
+            spyChangeEl.style.color = spyUp ? 'var(--green)' : 'var(--red)';
+
+            // QQQ
+            const qqqPriceEl = document.getElementById('qqq-price');
+            const qqqChangeEl = document.getElementById('qqq-change');
+            qqqPriceEl.textContent = '$' + market.qqq.price.toFixed(2);
+            const qqqUp = market.qqq.change >= 0;
+            qqqChangeEl.textContent = `${qqqUp ? '+' : ''}${market.qqq.changePct.toFixed(2)}%`;
+            qqqChangeEl.style.color = qqqUp ? 'var(--green)' : 'var(--red)';
         }
 
         // Fallback REST polling
