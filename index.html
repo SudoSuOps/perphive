@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PERPHIVE - Real-Time Perps Trading Intelligence</title>
+    <meta name="description" content="Real-time order flow signals for perpetual futures trading. BTC and ETH market intelligence.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐝</text></svg>">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a2e;
+            --border: #252538;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --green: #00ff88;
+            --green-dim: #00cc6a;
+            --red: #ff4444;
+            --red-dim: #cc3636;
+            --yellow: #ffaa00;
+            --blue: #4488ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .logo-icon {
+            font-size: 28px;
+        }
+
+        .logo span {
+            color: var(--text-secondary);
+            font-weight: 400;
+            font-size: 14px;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .live-dot.disconnected {
+            background: var(--red);
+            animation: none;
+        }
+
+        .exchange-badges {
+            display: flex;
+            gap: 8px;
+        }
+
+        .exchange-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4); }
+            50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(0, 255, 136, 0); }
+        }
+
+        /* Hero Signal */
+        .hero-signal {
+            padding: 40px 0;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .signal-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .signal-main {
+            font-size: 72px;
+            font-weight: 800;
+            letter-spacing: 8px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .signal-main.long {
+            color: var(--green);
+            text-shadow: 0 0 60px rgba(0, 255, 136, 0.4);
+        }
+
+        .signal-main.short {
+            color: var(--red);
+            text-shadow: 0 0 60px rgba(255, 68, 68, 0.4);
+        }
+
+        .signal-main.wait {
+            color: var(--text-muted);
+        }
+
+        .signal-reason {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 30px;
+        }
+
+        .signal-levels {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+        }
+
+        .level {
+            text-align: center;
+        }
+
+        .level-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .level-value {
+            font-size: 24px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .level-value.entry { color: var(--text-primary); }
+        .level-value.stop { color: var(--red); }
+        .level-value.target { color: var(--green); }
+
+        /* Market Grid */
+        .market-section {
+            padding: 30px 0;
+        }
+
+        .section-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .market-grid { grid-template-columns: 1fr; }
+            .signal-main { font-size: 48px; }
+            .signal-levels { gap: 30px; }
+        }
+
+        .market-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: border-color 0.3s ease;
+        }
+
+        .market-card.bullish { border-color: var(--green-dim); }
+        .market-card.bearish { border-color: var(--red-dim); }
+
+        .market-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .market-symbol {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .market-price {
+            text-align: right;
+        }
+
+        .price-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .price-spread {
+            font-size: 12px;
+            margin-top: 2px;
+            color: var(--text-muted);
+        }
+
+        /* Imbalance Meter */
+        .imbalance-section {
+            margin-bottom: 20px;
+        }
+
+        .imbalance-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .imbalance-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .imbalance-value {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .imbalance-bar {
+            height: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .imbalance-fill {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            transition: all 0.5s ease;
+            border-radius: 6px;
+        }
+
+        .imbalance-fill.buy {
+            left: 50%;
+            background: linear-gradient(90deg, transparent 0%, var(--green) 100%);
+        }
+
+        .imbalance-fill.sell {
+            right: 50%;
+            background: linear-gradient(270deg, transparent 0%, var(--red) 100%);
+        }
+
+        .imbalance-center {
+            position: absolute;
+            left: 50%;
+            top: -2px;
+            bottom: -2px;
+            width: 2px;
+            background: var(--text-muted);
+        }
+
+        /* Exchange comparison */
+        .exchange-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .exchange-box {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .exchange-name {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .exchange-imb {
+            font-size: 18px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .exchange-depth {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .stat-item {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 4px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .stat-value.green { color: var(--green); }
+        .stat-value.red { color: var(--red); }
+        .stat-value.yellow { color: var(--yellow); }
+
+        /* Whale Orders */
+        .whales-section {
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .whales-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .whales-grid { grid-template-columns: 1fr; }
+        }
+
+        .whale-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .whale-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .whale-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .whale-order {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .whale-side {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+
+        .whale-side.bid { color: var(--green); }
+        .whale-side.ask { color: var(--red); }
+
+        .whale-exchange {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .whale-details {
+            text-align: right;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        /* Support/Resistance Levels */
+        .levels-section {
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .levels-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .levels-grid { grid-template-columns: 1fr; }
+        }
+
+        .level-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .level-card.support { border-left: 3px solid var(--green); }
+        .level-card.resistance { border-left: 3px solid var(--red); }
+
+        .level-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .level-card-title .icon { font-size: 16px; }
+
+        .level-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .level-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+        }
+
+        .level-price {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .level-price.support { color: var(--green); }
+        .level-price.resistance { color: var(--red); }
+
+        .level-meta {
+            text-align: right;
+        }
+
+        .level-strength {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .level-type {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .strength-bar {
+            width: 60px;
+            height: 4px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .strength-fill.support { background: var(--green); }
+        .strength-fill.resistance { background: var(--red); }
+
+        /* Chart Section */
+        .chart-section {
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .chart-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Indicators Section */
+        .indicators-section {
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        @media (max-width: 1024px) {
+            .indicators-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 640px) {
+            .indicators-grid { grid-template-columns: 1fr; }
+        }
+
+        .indicator-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .indicator-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .indicator-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .indicator-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .footer-text {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--green);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <div class="logo">
+                    <span class="logo-icon">🐝</span>
+                    PERPHIVE
+                    <span>Order Flow Intelligence</span>
+                </div>
+                <div class="header-status">
+                    <div class="exchange-badges">
+                        <span class="exchange-badge">Hyperliquid</span>
+                        <span class="exchange-badge">OKX</span>
+                        <span class="exchange-badge">Kraken</span>
+                    </div>
+                    <div class="live-indicator">
+                        <div class="live-dot" id="live-dot"></div>
+                        <span id="update-time">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero-signal">
+            <div class="container">
+                <div class="signal-badge">Cross-Exchange Signal</div>
+                <div class="signal-main wait" id="signal-main">LOADING</div>
+                <div class="signal-reason" id="signal-reason">Connecting to order flow feed...</div>
+                <div class="signal-levels">
+                    <div class="level">
+                        <div class="level-label">Entry</div>
+                        <div class="level-value entry" id="level-entry">--</div>
+                    </div>
+                    <div class="level">
+                        <div class="level-label">Stop (-0.3%)</div>
+                        <div class="level-value stop" id="level-stop">--</div>
+                    </div>
+                    <div class="level">
+                        <div class="level-label">Target (+0.5%)</div>
+                        <div class="level-value target" id="level-target">--</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-size: 12px; color: var(--text-muted);">
+                    10x Scalp Mode: 0.5% target = 5% gain | 0.3% stop = 3% risk | R:R 1.67:1
+                </div>
+            </div>
+        </section>
+
+        <section class="market-section">
+            <div class="container">
+                <div class="section-title">Cross-Exchange Order Book Analysis</div>
+                <div class="market-grid">
+                    <div class="market-card" id="btc-card">
+                        <div class="market-header">
+                            <div class="market-symbol">BTC</div>
+                            <div class="market-price">
+                                <div class="price-value" id="btc-price">$--,---</div>
+                                <div class="price-spread" id="btc-spread">Spread: -- bps</div>
+                            </div>
+                        </div>
+                        <div class="imbalance-section">
+                            <div class="imbalance-header">
+                                <span class="imbalance-label">Combined Imbalance</span>
+                                <span class="imbalance-value" id="btc-imbalance">--%</span>
+                            </div>
+                            <div class="imbalance-bar">
+                                <div class="imbalance-fill buy" id="btc-buy-fill"></div>
+                                <div class="imbalance-fill sell" id="btc-sell-fill"></div>
+                                <div class="imbalance-center"></div>
+                            </div>
+                        </div>
+                        <div class="exchange-comparison">
+                            <div class="exchange-box">
+                                <div class="exchange-name">Hyperliquid</div>
+                                <div class="exchange-imb" id="btc-hl-imb">--%</div>
+                                <div class="exchange-depth" id="btc-hl-depth">Bid: -- | Ask: --</div>
+                            </div>
+                            <div class="exchange-box">
+                                <div class="exchange-name">OKX</div>
+                                <div class="exchange-imb" id="btc-okx-imb">--%</div>
+                                <div class="exchange-depth" id="btc-okx-depth">Bid: -- | Ask: --</div>
+                            </div>
+                            <div class="exchange-box">
+                                <div class="exchange-name">Kraken</div>
+                                <div class="exchange-imb" id="btc-kraken-imb">--%</div>
+                                <div class="exchange-depth" id="btc-kraken-depth">Bid: -- | Ask: --</div>
+                            </div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">15m Trend</div>
+                                <div class="stat-value" id="btc-pressure">--</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Confidence</div>
+                                <div class="stat-value" id="btc-confidence">--%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="market-card" id="eth-card">
+                        <div class="market-header">
+                            <div class="market-symbol">ETH</div>
+                            <div class="market-price">
+                                <div class="price-value" id="eth-price">$--,---</div>
+                                <div class="price-spread" id="eth-spread">Spread: -- bps</div>
+                            </div>
+                        </div>
+                        <div class="imbalance-section">
+                            <div class="imbalance-header">
+                                <span class="imbalance-label">Combined Imbalance</span>
+                                <span class="imbalance-value" id="eth-imbalance">--%</span>
+                            </div>
+                            <div class="imbalance-bar">
+                                <div class="imbalance-fill buy" id="eth-buy-fill"></div>
+                                <div class="imbalance-fill sell" id="eth-sell-fill"></div>
+                                <div class="imbalance-center"></div>
+                            </div>
+                        </div>
+                        <div class="exchange-comparison">
+                            <div class="exchange-box">
+                                <div class="exchange-name">Hyperliquid</div>
+                                <div class="exchange-imb" id="eth-hl-imb">--%</div>
+                                <div class="exchange-depth" id="eth-hl-depth">Bid: -- | Ask: --</div>
+                            </div>
+                            <div class="exchange-box">
+                                <div class="exchange-name">OKX</div>
+                                <div class="exchange-imb" id="eth-okx-imb">--%</div>
+                                <div class="exchange-depth" id="eth-okx-depth">Bid: -- | Ask: --</div>
+                            </div>
+                            <div class="exchange-box">
+                                <div class="exchange-name">Kraken</div>
+                                <div class="exchange-imb" id="eth-kraken-imb">--%</div>
+                                <div class="exchange-depth" id="eth-kraken-depth">Bid: -- | Ask: --</div>
+                            </div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">15m Trend</div>
+                                <div class="stat-value" id="eth-pressure">--</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Confidence</div>
+                                <div class="stat-value" id="eth-confidence">--%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="whales-section">
+            <div class="container">
+                <div class="section-title">Whale Consensus (3 Exchange Agreement)</div>
+                <div class="whales-grid">
+                    <!-- BTC Whale Consensus -->
+                    <div class="whale-card" style="border: 2px solid var(--border);" id="btc-whale-consensus-card">
+                        <div class="whale-title" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>BTC WHALES</span>
+                            <span id="btc-whale-signal" style="font-size: 20px; font-weight: 700;">--</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0;">
+                            <div style="text-align: center; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;">
+                                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Whale Bids</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--green);" id="btc-whale-bids">--</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);" id="btc-whale-bid-exchanges">-- exchanges</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;">
+                                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Whale Asks</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--red);" id="btc-whale-asks">--</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);" id="btc-whale-ask-exchanges">-- exchanges</div>
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 11px; color: var(--text-muted);">Consensus Strength</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="btc-whale-strength">--%</div>
+                        </div>
+                    </div>
+                    <!-- ETH Whale Consensus -->
+                    <div class="whale-card" style="border: 2px solid var(--border);" id="eth-whale-consensus-card">
+                        <div class="whale-title" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>ETH WHALES</span>
+                            <span id="eth-whale-signal" style="font-size: 20px; font-weight: 700;">--</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0;">
+                            <div style="text-align: center; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;">
+                                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Whale Bids</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--green);" id="eth-whale-bids">--</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);" id="eth-whale-bid-exchanges">-- exchanges</div>
+                            </div>
+                            <div style="text-align: center; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;">
+                                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Whale Asks</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--red);" id="eth-whale-asks">--</div>
+                                <div style="font-size: 11px; color: var(--text-secondary);" id="eth-whale-ask-exchanges">-- exchanges</div>
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 11px; color: var(--text-muted);">Consensus Strength</div>
+                            <div style="font-size: 24px; font-weight: 700;" id="eth-whale-strength">--%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-title" style="margin-top: 30px;">Whale Order Details</div>
+                <div class="whales-grid">
+                    <div class="whale-card">
+                        <div class="whale-title">BTC Whale Orders</div>
+                        <div class="whale-list" id="btc-whales">
+                            <div class="whale-order"><span class="whale-side">Loading...</span></div>
+                        </div>
+                    </div>
+                    <div class="whale-card">
+                        <div class="whale-title">ETH Whale Orders</div>
+                        <div class="whale-list" id="eth-whales">
+                            <div class="whale-order"><span class="whale-side">Loading...</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="onchain-section" style="padding: 30px 0; background: var(--bg-secondary);">
+            <div class="container">
+                <div class="section-title">On-Chain Intelligence (CryptoQuant)</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                    <!-- BTC Leverage -->
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">BTC Leverage Ratio</div>
+                        <div style="font-size: 28px; font-weight: 700;" id="btc-leverage">--</div>
+                        <div style="font-size: 12px; margin-top: 5px;" id="btc-leverage-label">Loading...</div>
+                    </div>
+                    <!-- ETH Leverage -->
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">ETH Leverage Ratio</div>
+                        <div style="font-size: 28px; font-weight: 700;" id="eth-leverage">--</div>
+                        <div style="font-size: 12px; margin-top: 5px;" id="eth-leverage-label">Loading...</div>
+                    </div>
+                    <!-- Miner Sentiment -->
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">BTC Miner Sentiment</div>
+                        <div style="font-size: 28px; font-weight: 700;" id="miner-sentiment">--</div>
+                        <div style="font-size: 12px; margin-top: 5px;" id="miner-mpi">MPI: --</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: var(--text-muted); text-align: center;">
+                    High leverage = liquidation risk | Miners accumulating = bullish signal | Data updates hourly
+                </div>
+            </div>
+        </section>
+
+        <section class="miners-section" style="padding: 30px 0; border-top: 1px solid var(--border);">
+            <div class="container">
+                <div class="section-title">BTC Mining Companies - Daily Production (CryptoQuant)</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;" id="miners-grid">
+                    <!-- Miners will be populated by JavaScript -->
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px; text-align: center; grid-column: span 3;">
+                        <span style="color: var(--text-muted);">Loading miner data...</span>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                    <!-- Total Mining Stats -->
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px; border-left: 3px solid var(--green);">
+                        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">Total Daily Production (Tracked Miners)</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 28px; font-weight: 700; color: var(--green);" id="total-daily-btc">-- BTC</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);" id="total-daily-usd">$--</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: var(--text-muted);">Miners Tracked</div>
+                                <div style="font-size: 18px; font-weight: 600;" id="miners-count">--</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Monthly Stats -->
+                    <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px; border-left: 3px solid var(--blue);">
+                        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">Total Monthly Production (MTD)</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 28px; font-weight: 700; color: var(--blue);" id="total-monthly-btc">-- BTC</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);" id="total-monthly-usd">$--</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: var(--text-muted);">Data Date</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);" id="miners-date">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: var(--text-muted); text-align: center;">
+                    Miner production = network health indicator | High production + accumulating = bullish | Data from CryptoQuant
+                </div>
+            </div>
+        </section>
+
+        <section class="levels-section">
+            <div class="container">
+                <div class="section-title">Support & Resistance (Order Book Walls)</div>
+                <div class="levels-grid">
+                    <div class="level-card support">
+                        <div class="level-card-title">
+                            <span class="icon">🟢</span> BTC Support Levels
+                        </div>
+                        <div class="level-list" id="btc-support">
+                            <div class="level-item"><span>Loading...</span></div>
+                        </div>
+                    </div>
+                    <div class="level-card resistance">
+                        <div class="level-card-title">
+                            <span class="icon">🔴</span> BTC Resistance Levels
+                        </div>
+                        <div class="level-list" id="btc-resistance">
+                            <div class="level-item"><span>Loading...</span></div>
+                        </div>
+                    </div>
+                    <div class="level-card support">
+                        <div class="level-card-title">
+                            <span class="icon">🟢</span> ETH Support Levels
+                        </div>
+                        <div class="level-list" id="eth-support">
+                            <div class="level-item"><span>Loading...</span></div>
+                        </div>
+                    </div>
+                    <div class="level-card resistance">
+                        <div class="level-card-title">
+                            <span class="icon">🔴</span> ETH Resistance Levels
+                        </div>
+                        <div class="level-list" id="eth-resistance">
+                            <div class="level-item"><span>Loading...</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="chart-section">
+            <div class="container">
+                <div class="section-title">Price Charts (15M + RSI)</div>
+                <div class="charts-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                    <!-- BTC Chart -->
+                    <div class="chart-container">
+                        <div class="tradingview-widget-container" style="height:450px;width:100%">
+                            <div id="tradingview_btc" style="height:100%;width:100%"></div>
+                        </div>
+                    </div>
+                    <!-- ETH Chart -->
+                    <div class="chart-container">
+                        <div class="tradingview-widget-container" style="height:450px;width:100%">
+                            <div id="tradingview_eth" style="height:100%;width:100%"></div>
+                        </div>
+                    </div>
+                </div>
+                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                <script type="text/javascript">
+                // BTC Chart
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "BINANCE:BTCUSDT.P",
+                    "interval": "15",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#12121a",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "hide_legend": false,
+                    "save_image": false,
+                    "container_id": "tradingview_btc",
+                    "studies": [
+                        "RSI@tv-basicstudies"
+                    ],
+                    "backgroundColor": "#12121a",
+                    "gridColor": "#1a1a2e"
+                });
+                // ETH Chart
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "BINANCE:ETHUSDT.P",
+                    "interval": "15",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#12121a",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "hide_legend": false,
+                    "save_image": false,
+                    "container_id": "tradingview_eth",
+                    "studies": [
+                        "RSI@tv-basicstudies"
+                    ],
+                    "backgroundColor": "#12121a",
+                    "gridColor": "#1a1a2e"
+                });
+                </script>
+            </div>
+        </section>
+
+        <section class="indicators-section">
+            <div class="container">
+                <div class="section-title">Market Intelligence</div>
+                <div class="indicators-grid">
+                    <div class="indicator-card">
+                        <div class="indicator-label">Market Bias</div>
+                        <div class="indicator-value" id="market-bias">--</div>
+                        <div class="indicator-desc">Cross-exchange sentiment</div>
+                    </div>
+                    <div class="indicator-card">
+                        <div class="indicator-label">Exchange Alignment</div>
+                        <div class="indicator-value" id="correlation">--</div>
+                        <div class="indicator-desc">HL/OKX book correlation</div>
+                    </div>
+                    <div class="indicator-card">
+                        <div class="indicator-label">Cross-Ex Spread</div>
+                        <div class="indicator-value" id="cross-spread">-- bps</div>
+                        <div class="indicator-desc">HL vs OKX price diff</div>
+                    </div>
+                    <div class="indicator-card">
+                        <div class="indicator-label">Signal Strength</div>
+                        <div class="indicator-value" id="signal-strength">--</div>
+                        <div class="indicator-desc">Order flow conviction</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-text">
+                PERPHIVE - Real-time cross-exchange order flow signals
+            </div>
+            <div class="footer-links">
+                <a href="https://perpnet.eth.limo">IPFS Mirror</a>
+                <a href="https://perphive-api.dm-6ab.workers.dev">API</a>
+                <a href="#">Docs</a>
+            </div>
+            <div class="footer-text" style="margin-top: 20px; font-size: 11px;">
+                Not financial advice. Trade at your own risk.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // API endpoint
+        const API_URL = 'https://perphive-api.dm-6ab.workers.dev';
+
+        // State
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+
+        // Connect WebSocket
+        function connectWebSocket() {
+            const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+                document.getElementById('live-dot').classList.remove('disconnected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateDashboard(data);
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket closed');
+                document.getElementById('live-dot').classList.add('disconnected');
+
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, Math.min(1000 * reconnectAttempts, 10000));
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            // Keep alive
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send('ping');
+                }
+            }, 30000);
+        }
+
+        // Update dashboard with API data
+        function updateDashboard(data) {
+            const { btc, eth, onChain } = data;
+
+            // Update BTC
+            updateAssetCard('btc', btc);
+
+            // Update ETH
+            updateAssetCard('eth', eth);
+
+            // Update main signal (use ETH as primary)
+            updateMainSignal(eth, btc);
+
+            // Update indicators
+            updateIndicators(btc, eth);
+
+            // Update on-chain data (CryptoQuant)
+            if (onChain) {
+                updateOnChainData(onChain);
+            }
+
+            // Update time
+            document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
+        }
+
+        function updateAssetCard(symbol, signal) {
+            // Price
+            const price = signal.hyperliquid.price || signal.okx.price;
+            document.getElementById(`${symbol}-price`).textContent = `$${price.toLocaleString(undefined, {maximumFractionDigits: symbol === 'btc' ? 0 : 2})}`;
+
+            // Spread
+            document.getElementById(`${symbol}-spread`).textContent = `Spread: ${signal.crossExchangeSpread} bps`;
+
+            // Combined imbalance (show both instant and 15m)
+            const imb = signal.combinedImbalance * 100;
+            const imb15m = (signal.imbalance15m || 0) * 100;
+            const imbEl = document.getElementById(`${symbol}-imbalance`);
+            imbEl.textContent = `Now: ${imb >= 0 ? '+' : ''}${imb.toFixed(0)}% | 15m: ${imb15m >= 0 ? '+' : ''}${imb15m.toFixed(0)}%`;
+            imbEl.style.color = imb15m > 5 ? 'var(--green)' : imb15m < -5 ? 'var(--red)' : 'var(--text-secondary)';
+
+            // Imbalance bars - use 15m average for stability
+            const buyFill = document.getElementById(`${symbol}-buy-fill`);
+            const sellFill = document.getElementById(`${symbol}-sell-fill`);
+            const imb15mVal = signal.imbalance15m || 0;
+            if (imb15mVal > 0) {
+                buyFill.style.width = `${Math.min(imb15mVal * 100, 50)}%`;
+                sellFill.style.width = '0%';
+            } else {
+                buyFill.style.width = '0%';
+                sellFill.style.width = `${Math.min(Math.abs(imb15mVal) * 100, 50)}%`;
+            }
+
+            // Hyperliquid data
+            const hlImb = signal.hyperliquid.imbalance * 100;
+            const hlImbEl = document.getElementById(`${symbol}-hl-imb`);
+            hlImbEl.textContent = `${hlImb >= 0 ? '+' : ''}${hlImb.toFixed(0)}%`;
+            hlImbEl.style.color = hlImb > 0 ? 'var(--green)' : hlImb < 0 ? 'var(--red)' : 'var(--text-secondary)';
+            document.getElementById(`${symbol}-hl-depth`).textContent =
+                `Bid: ${signal.hyperliquid.bidDepth.toFixed(1)} | Ask: ${signal.hyperliquid.askDepth.toFixed(1)}`;
+
+            // OKX data
+            const okxImb = signal.okx.imbalance * 100;
+            const okxImbEl = document.getElementById(`${symbol}-okx-imb`);
+            okxImbEl.textContent = `${okxImb >= 0 ? '+' : ''}${okxImb.toFixed(0)}%`;
+            okxImbEl.style.color = okxImb > 0 ? 'var(--green)' : okxImb < 0 ? 'var(--red)' : 'var(--text-secondary)';
+            document.getElementById(`${symbol}-okx-depth`).textContent =
+                `Bid: ${signal.okx.bidDepth.toFixed(1)} | Ask: ${signal.okx.askDepth.toFixed(1)}`;
+
+            // Kraken data
+            const krakenImb = signal.kraken.imbalance * 100;
+            const krakenImbEl = document.getElementById(`${symbol}-kraken-imb`);
+            krakenImbEl.textContent = `${krakenImb >= 0 ? '+' : ''}${krakenImb.toFixed(0)}%`;
+            krakenImbEl.style.color = krakenImb > 0 ? 'var(--green)' : krakenImb < 0 ? 'var(--red)' : 'var(--text-secondary)';
+            document.getElementById(`${symbol}-kraken-depth`).textContent =
+                `Bid: ${signal.kraken.bidDepth.toFixed(1)} | Ask: ${signal.kraken.askDepth.toFixed(1)}`;
+
+            // Pressure - use 15m trend, not instant
+            const pressureEl = document.getElementById(`${symbol}-pressure`);
+            const trend = signal.trend || 'NEUTRAL';
+            if (trend === 'BULLISH') {
+                pressureEl.textContent = 'BULLISH';
+                pressureEl.className = 'stat-value green';
+            } else if (trend === 'BEARISH') {
+                pressureEl.textContent = 'BEARISH';
+                pressureEl.className = 'stat-value red';
+            } else {
+                pressureEl.textContent = 'Neutral';
+                pressureEl.className = 'stat-value yellow';
+            }
+
+            // Confidence
+            const confEl = document.getElementById(`${symbol}-confidence`);
+            confEl.textContent = `${signal.confidence}%`;
+            confEl.className = `stat-value ${signal.confidence > 70 ? 'green' : signal.confidence > 50 ? 'yellow' : ''}`;
+
+            // Card border
+            const card = document.getElementById(`${symbol}-card`);
+            card.className = `market-card ${signal.action === 'LONG' ? 'bullish' : signal.action === 'SHORT' ? 'bearish' : ''}`;
+
+            // Whale orders
+            const whalesEl = document.getElementById(`${symbol}-whales`);
+            if (signal.whaleOrders && signal.whaleOrders.length > 0) {
+                whalesEl.innerHTML = signal.whaleOrders.slice(0, 6).map(w => `
+                    <div class="whale-order">
+                        <div>
+                            <span class="whale-side ${w.side.toLowerCase()}">${w.side}</span>
+                            <span class="whale-exchange">${w.exchange}</span>
+                        </div>
+                        <div class="whale-details">$${w.price.toLocaleString(undefined, {maximumFractionDigits: 0})} x ${w.size.toFixed(1)}</div>
+                    </div>
+                `).join('');
+            } else {
+                whalesEl.innerHTML = '<div class="whale-order"><span style="color: var(--text-muted)">No whale orders detected</span></div>';
+            }
+
+            // Whale Consensus
+            if (signal.whaleConsensus) {
+                const wc = signal.whaleConsensus;
+                const signalEl = document.getElementById(`${symbol}-whale-signal`);
+                const strengthEl = document.getElementById(`${symbol}-whale-strength`);
+                const cardEl = document.getElementById(`${symbol}-whale-consensus-card`);
+
+                // Signal display
+                signalEl.textContent = wc.signal;
+                if (wc.signal === 'LONG') {
+                    signalEl.style.color = 'var(--green)';
+                    cardEl.style.borderColor = 'var(--green-dim)';
+                } else if (wc.signal === 'SHORT') {
+                    signalEl.style.color = 'var(--red)';
+                    cardEl.style.borderColor = 'var(--red-dim)';
+                } else {
+                    signalEl.style.color = 'var(--text-muted)';
+                    cardEl.style.borderColor = 'var(--border)';
+                }
+
+                // Strength
+                strengthEl.textContent = `${wc.strength}%`;
+                strengthEl.style.color = wc.strength > 70 ? 'var(--green)' : wc.strength > 40 ? 'var(--yellow)' : 'var(--text-muted)';
+
+                // Bids/Asks
+                document.getElementById(`${symbol}-whale-bids`).textContent = wc.bidSize.toFixed(1);
+                document.getElementById(`${symbol}-whale-asks`).textContent = wc.askSize.toFixed(1);
+                document.getElementById(`${symbol}-whale-bid-exchanges`).textContent = `${wc.exchangesWithBids}/3 exchanges`;
+                document.getElementById(`${symbol}-whale-ask-exchanges`).textContent = `${wc.exchangesWithAsks}/3 exchanges`;
+            }
+
+            // Support/Resistance levels
+            updateLevels(`${symbol}-support`, signal.supportLevels, 'support');
+            updateLevels(`${symbol}-resistance`, signal.resistanceLevels, 'resistance');
+        }
+
+        function updateLevels(elementId, levels, type) {
+            const el = document.getElementById(elementId);
+            if (!levels || levels.length === 0) {
+                el.innerHTML = `<div class="level-item"><span style="color: var(--text-muted)">No ${type} levels detected</span></div>`;
+                return;
+            }
+
+            el.innerHTML = levels.slice(0, 5).map(level => {
+                // Build detailed explanation of why this level is strong
+                const reasons = [];
+
+                // Primary type
+                if (level.type === 'wall') {
+                    reasons.push(`Order wall (${level.totalSize.toFixed(0)} size)`);
+                } else if (level.type === 'round') {
+                    reasons.push('Round number psychology');
+                } else if (level.type === 'cluster') {
+                    reasons.push('Order cluster');
+                }
+
+                // Secondary reasons based on new fields
+                const exCount = level.exchangeCount || 1;
+                if (exCount === 3) {
+                    reasons.push('All 3 exchanges');
+                } else if (exCount === 2) {
+                    reasons.push('2 exchanges');
+                }
+                if (level.isRoundNumber && level.type !== 'round') {
+                    reasons.push('Round #');
+                }
+
+                // Size context
+                const sizeLabel = level.totalSize > 100 ? 'Heavy' : level.totalSize > 20 ? 'Medium' : 'Light';
+
+                // Strength breakdown tooltip
+                const strengthExplain = [];
+                if (level.totalSize > 20) strengthExplain.push(`Size: ${level.totalSize.toFixed(0)}`);
+                if (exCount >= 2) strengthExplain.push(`+${exCount === 3 ? '30' : '15'}% ${exCount}ex`);
+                if (level.isRoundNumber) strengthExplain.push('+30% round');
+
+                return `
+                <div class="level-item">
+                    <div>
+                        <div class="level-price ${type}">$${level.price.toLocaleString()}</div>
+                        <div class="level-type">${reasons.join(' + ')}</div>
+                    </div>
+                    <div class="level-meta">
+                        <div class="level-strength" title="${strengthExplain.join(', ')}">${level.strength}%</div>
+                        <div class="strength-bar">
+                            <div class="strength-fill ${type}" style="width: ${level.strength}%"></div>
+                        </div>
+                        <div style="font-size: 9px; color: var(--text-muted); margin-top: 2px;">${sizeLabel} ${type === 'support' ? 'bids' : 'asks'}</div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function updateMainSignal(ethSignal, btcSignal) {
+            const signalEl = document.getElementById('signal-main');
+            const reasonEl = document.getElementById('signal-reason');
+
+            signalEl.textContent = ethSignal.action;
+            signalEl.className = `signal-main ${ethSignal.action.toLowerCase()}`;
+
+            // Use 15m trend values
+            const btc15m = ((btcSignal.imbalance15m || 0) * 100).toFixed(0);
+            const eth15m = ((ethSignal.imbalance15m || 0) * 100).toFixed(0);
+            const btcTrend = btcSignal.trend || 'NEUTRAL';
+            const ethTrend = ethSignal.trend || 'NEUTRAL';
+
+            if (ethSignal.action === 'LONG') {
+                reasonEl.textContent = `15m trend BULLISH. BTC: ${btc15m}% (${btcTrend}), ETH: ${eth15m}% (${ethTrend}). Confidence: ${ethSignal.confidence}%`;
+            } else if (ethSignal.action === 'SHORT') {
+                reasonEl.textContent = `15m trend BEARISH. BTC: ${btc15m}% (${btcTrend}), ETH: ${eth15m}% (${ethTrend}). Confidence: ${ethSignal.confidence}%`;
+            } else {
+                reasonEl.textContent = `15m trend NEUTRAL. BTC: ${btc15m}% (${btcTrend}), ETH: ${eth15m}% (${ethTrend}). Waiting for sustained bias.`;
+            }
+
+            // Levels - Scalp targets for 10x leverage quick pops
+            // Target: 0.5% move = 5% gain at 10x (~$50-100 on typical position)
+            // Stop: 0.3% move = 3% loss at 10x (tight risk management)
+            const ethPrice = ethSignal.hyperliquid.price || ethSignal.okx.price;
+            if (ethSignal.action === 'LONG' && ethPrice > 0) {
+                document.getElementById('level-entry').textContent = `$${ethPrice.toFixed(2)}`;
+                document.getElementById('level-stop').textContent = `$${(ethPrice * 0.997).toFixed(2)}`;  // -0.3%
+                document.getElementById('level-target').textContent = `$${(ethPrice * 1.005).toFixed(2)}`; // +0.5%
+            } else if (ethSignal.action === 'SHORT' && ethPrice > 0) {
+                document.getElementById('level-entry').textContent = `$${ethPrice.toFixed(2)}`;
+                document.getElementById('level-stop').textContent = `$${(ethPrice * 1.003).toFixed(2)}`;  // +0.3%
+                document.getElementById('level-target').textContent = `$${(ethPrice * 0.995).toFixed(2)}`; // -0.5%
+            } else {
+                document.getElementById('level-entry').textContent = '--';
+                document.getElementById('level-stop').textContent = '--';
+                document.getElementById('level-target').textContent = '--';
+            }
+        }
+
+        function updateIndicators(btcSignal, ethSignal) {
+            // Market bias
+            const biasEl = document.getElementById('market-bias');
+            if (btcSignal.action === 'LONG' && ethSignal.action === 'LONG') {
+                biasEl.textContent = 'BULLISH';
+                biasEl.style.color = 'var(--green)';
+            } else if (btcSignal.action === 'SHORT' && ethSignal.action === 'SHORT') {
+                biasEl.textContent = 'BEARISH';
+                biasEl.style.color = 'var(--red)';
+            } else {
+                biasEl.textContent = 'MIXED';
+                biasEl.style.color = 'var(--yellow)';
+            }
+
+            // Exchange alignment (check all 3 exchanges)
+            const corrEl = document.getElementById('correlation');
+            const btcBullish = [btcSignal.hyperliquid.imbalance > 0, btcSignal.okx.imbalance > 0, btcSignal.kraken.imbalance > 0];
+            const ethBullish = [ethSignal.hyperliquid.imbalance > 0, ethSignal.okx.imbalance > 0, ethSignal.kraken.imbalance > 0];
+            const btcAligned = btcBullish.filter(b => b).length;
+            const ethAligned = ethBullish.filter(b => b).length;
+
+            // Count how many exchanges agree on direction
+            const btcConsensus = Math.max(btcAligned, 3 - btcAligned); // How many agree (either bullish or bearish)
+            const ethConsensus = Math.max(ethAligned, 3 - ethAligned);
+
+            if (btcConsensus === 3 && ethConsensus === 3) {
+                corrEl.textContent = 'ALL ALIGNED';
+                corrEl.style.color = 'var(--green)';
+            } else if (btcConsensus >= 2 && ethConsensus >= 2) {
+                corrEl.textContent = '2/3 ALIGNED';
+                corrEl.style.color = 'var(--yellow)';
+            } else {
+                corrEl.textContent = 'DIVERGENT';
+                corrEl.style.color = 'var(--red)';
+            }
+
+            // Cross-exchange spread
+            const avgSpread = (btcSignal.crossExchangeSpread + ethSignal.crossExchangeSpread) / 2;
+            const spreadEl = document.getElementById('cross-spread');
+            spreadEl.textContent = `${avgSpread.toFixed(1)} bps`;
+            spreadEl.style.color = Math.abs(avgSpread) < 5 ? 'var(--green)' : Math.abs(avgSpread) < 10 ? 'var(--yellow)' : 'var(--red)';
+
+            // Signal strength
+            const avgConfidence = (btcSignal.confidence + ethSignal.confidence) / 2;
+            const strengthEl = document.getElementById('signal-strength');
+            strengthEl.textContent = `${avgConfidence.toFixed(0)}%`;
+            strengthEl.style.color = avgConfidence > 70 ? 'var(--green)' : avgConfidence > 50 ? 'var(--yellow)' : 'var(--text-muted)';
+        }
+
+        // Update on-chain data (CryptoQuant)
+        function updateOnChainData(onChain) {
+            // BTC Leverage
+            const btcLevEl = document.getElementById('btc-leverage');
+            const btcLevLabelEl = document.getElementById('btc-leverage-label');
+            btcLevEl.textContent = (onChain.btcLeverageRatio * 100).toFixed(1) + '%';
+            if (onChain.btcLeverageRatio > 0.2) {
+                btcLevEl.style.color = 'var(--red)';
+                btcLevLabelEl.textContent = 'HIGH - Liquidation Risk';
+                btcLevLabelEl.style.color = 'var(--red)';
+            } else if (onChain.btcLeverageRatio > 0.15) {
+                btcLevEl.style.color = 'var(--yellow)';
+                btcLevLabelEl.textContent = 'MEDIUM';
+                btcLevLabelEl.style.color = 'var(--yellow)';
+            } else {
+                btcLevEl.style.color = 'var(--green)';
+                btcLevLabelEl.textContent = 'LOW - Healthy';
+                btcLevLabelEl.style.color = 'var(--green)';
+            }
+
+            // ETH Leverage
+            const ethLevEl = document.getElementById('eth-leverage');
+            const ethLevLabelEl = document.getElementById('eth-leverage-label');
+            ethLevEl.textContent = (onChain.ethLeverageRatio * 100).toFixed(1) + '%';
+            if (onChain.ethLeverageRatio > 0.5) {
+                ethLevEl.style.color = 'var(--red)';
+                ethLevLabelEl.textContent = 'HIGH - Liquidation Risk';
+                ethLevLabelEl.style.color = 'var(--red)';
+            } else if (onChain.ethLeverageRatio > 0.3) {
+                ethLevEl.style.color = 'var(--yellow)';
+                ethLevLabelEl.textContent = 'MEDIUM';
+                ethLevLabelEl.style.color = 'var(--yellow)';
+            } else {
+                ethLevEl.style.color = 'var(--green)';
+                ethLevLabelEl.textContent = 'LOW - Healthy';
+                ethLevLabelEl.style.color = 'var(--green)';
+            }
+
+            // Miner Sentiment
+            const minerEl = document.getElementById('miner-sentiment');
+            const mpiEl = document.getElementById('miner-mpi');
+            mpiEl.textContent = `MPI: ${onChain.btcMinerPositionIndex.toFixed(3)}`;
+
+            if (onChain.minerSentiment === 'ACCUMULATING') {
+                minerEl.textContent = 'ACCUMULATING';
+                minerEl.style.color = 'var(--green)';
+            } else if (onChain.minerSentiment === 'DISTRIBUTING') {
+                minerEl.textContent = 'DISTRIBUTING';
+                minerEl.style.color = 'var(--red)';
+            } else {
+                minerEl.textContent = 'NEUTRAL';
+                minerEl.style.color = 'var(--yellow)';
+            }
+
+            // Miner Companies Data
+            if (onChain.minerCompanies && onChain.minerCompanies.length > 0) {
+                updateMinerCompanies(onChain.minerCompanies);
+            }
+        }
+
+        // Update miner companies display
+        function updateMinerCompanies(miners) {
+            const grid = document.getElementById('miners-grid');
+
+            // Calculate totals
+            let totalDailyBTC = 0;
+            let totalDailyUSD = 0;
+            let totalMonthlyBTC = 0;
+            let totalMonthlyUSD = 0;
+            let dataDate = '';
+
+            miners.forEach(m => {
+                totalDailyBTC += m.totalRewards;
+                totalDailyUSD += m.dailyRewardsUSD;
+                totalMonthlyBTC += m.monthlyRewards;
+                totalMonthlyUSD += m.monthlyRewardsUSD;
+                if (m.date) dataDate = m.date;
+            });
+
+            // Build miner cards HTML
+            const minersHTML = miners.map(miner => {
+                // Calculate % of total
+                const pctOfTotal = totalDailyBTC > 0 ? ((miner.totalRewards / totalDailyBTC) * 100).toFixed(1) : 0;
+
+                return `
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);">${miner.ticker}</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">${miner.name}</div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); background: var(--bg-tertiary); padding: 4px 8px; border-radius: 4px;">
+                            ${pctOfTotal}% of total
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Daily</div>
+                            <div style="font-size: 16px; font-weight: 600; color: var(--green);">${miner.totalRewards.toFixed(2)} BTC</div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">$${formatNumber(miner.dailyRewardsUSD)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">MTD</div>
+                            <div style="font-size: 16px; font-weight: 600; color: var(--blue);">${miner.monthlyRewards.toFixed(1)} BTC</div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">$${formatNumber(miner.monthlyRewardsUSD)}</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = minersHTML;
+
+            // Update totals
+            document.getElementById('total-daily-btc').textContent = `${totalDailyBTC.toFixed(2)} BTC`;
+            document.getElementById('total-daily-usd').textContent = `$${formatNumber(totalDailyUSD)}`;
+            document.getElementById('total-monthly-btc').textContent = `${totalMonthlyBTC.toFixed(1)} BTC`;
+            document.getElementById('total-monthly-usd').textContent = `$${formatNumber(totalMonthlyUSD)}`;
+            document.getElementById('miners-count').textContent = miners.length;
+            document.getElementById('miners-date').textContent = dataDate;
+        }
+
+        // Format large numbers with K/M suffix
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(2) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toFixed(0);
+        }
+
+        // Fallback REST polling
+        async function fetchRESTData() {
+            try {
+                const resp = await fetch(API_URL + '/api/data');
+                const data = await resp.json();
+                updateDashboard(data);
+            } catch (e) {
+                console.error('REST fetch error:', e);
+            }
+        }
+
+        // Initialize
+        connectWebSocket();
+
+        // Fallback polling if WebSocket fails
+        setInterval(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                fetchRESTData();
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
